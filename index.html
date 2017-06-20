@@ -1,0 +1,57 @@
+<head>
+<meta charset="UTF-8">
+<script type="text/javascript" src="https://code.jquery.com/jquery-1.12.0.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery-json/2.5.1/jquery.json.min.js"></script>
+<script type="text/javascript" src="jquery.simple.websocket.js"></script>
+<script type="text/javascript">
+	//Connect to ProPresenter Remote Stage Display
+	//Replace 192.168.1.4:60157 below with the IP:Port of your ProPresenter computer and network stage display port
+    var webSocket = $.simpleWebSocket({ url: 'ws://192.168.1.4:60157/stagedisplay' });
+	
+	//Connect and send the password
+	//Update "av" with ProPresenter Stage Display Password
+    webSocket.send({"pwd":"av","ptl":610,"acn":"ath"}).done(function() {
+        // message send
+		console.log("SENT AUTH");
+    }).fail(function(e) {
+        // error sending
+    });
+
+    // reconnected listening
+    webSocket.listen(function(message) {
+		if (message['acn'] != "vid") {
+			console.log(message);
+		}
+		if (message['acn'] == "fv") {
+			if (message['ary'][0]['txt'] != undefined) {
+				console.log(message['ary']);
+				//var lyric = message['ary'][0]['txt'].toUpperCase()
+				var lyric = message['ary'][0]['txt'];
+				$("#cs").html(lyric.replaceAll("\n","<br>"));
+				var text = lyric.replaceAll("\n", "%0A");
+				
+				//Replace 127.0.0.1:8088 with the IP and Port of your vMix system
+				//SelectedIndex=0 may need modified to fit your vMix configuration. See the vMix API docs
+				$.get("http://127.0.0.1:8088/api/?Function=SetText&SelectedIndex=0&Value="+text);
+			}
+		}
+		
+		
+    });
+	
+	//Replace 127.0.0.1:8088 with the IP and Port of your vMix system
+	$.get("http://127.0.0.1:8088/api", function(d) {
+		console.log(d);
+	});
+	
+	
+String.prototype.replaceAll = function(search, replacement) {
+    var target = this;
+    return target.split(search).join(replacement);
+};
+</script>
+</head>
+<body>
+	<h4>Current Slide</h4>
+	<div id="cs"></div>
+</body>
