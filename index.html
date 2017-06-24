@@ -7,6 +7,12 @@
 <script type="text/javascript" src="lib/jquery.simple.websocket.js"></script>
 <script type="text/javascript" src="config.js"></script>
 <script type="text/javascript">
+	$(document).ready(function() {
+		$('#propresenter_ip').text("ProPresenter at "+ config['propresenter_ip'] +':'+config['propresenter_port']);
+		$('#vmix_ip').text("vMix at "+ config['vmix_ip'] +":"+ config['vmix_port']);
+		$('#vmix_input').text("Controlling vMix Input #"+ config['vmix_input']);
+	});
+	
 	//Connect to ProPresenter Remote Stage Display
     var webSocket = $.simpleWebSocket({ url: 'ws://'+config['propresenter_ip']+':'+config['propresenter_port']+'/stagedisplay' });
 	
@@ -52,7 +58,14 @@ String.prototype.replaceAll = function(search, replacement) {
 </script>
 </head>
 <body>
-	<h4>Current Slide</h4>
+	<h1>ProPresenter vMix Bridge</h1>
+	<h3>Configuration</h3>
+	<ul>
+		<li id="propresenter_ip"></li>
+		<li id="vmix_ip"></li>
+		<li id="vmix_input"></li>
+	</ul>
+	<h3>Current Slide</h3>
 	<div id="cs"></div>
 </body>
 </html>
