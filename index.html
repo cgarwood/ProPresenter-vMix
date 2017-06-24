@@ -2,7 +2,7 @@
 <meta charset="UTF-8">
 <script type="text/javascript" src="https://code.jquery.com/jquery-1.12.0.min.js"></script>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery-json/2.5.1/jquery.json.min.js"></script>
-<script type="text/javascript" src="jquery.simple.websocket.js"></script>
+<script type="text/javascript" src="lib/jquery.simple.websocket.js"></script>
 <script type="text/javascript">
 	//Connect to ProPresenter Remote Stage Display
 	//Replace 192.168.1.4:60157 below with the IP:Port of your ProPresenter computer and network stage display port
@@ -32,7 +32,7 @@
 				
 				//Replace 127.0.0.1:8088 with the IP and Port of your vMix system
 				//SelectedIndex=0 may need modified to fit your vMix configuration. See the vMix API docs
-				$.get("http://127.0.0.1:8088/api/?Function=SetText&SelectedIndex=0&Value="+text);
+				$.get("http://127.0.0.1:8088/api/?Function=SetText&SelectedIndex=0&Input=3&Value="+text);
 			}
 		}
 		
