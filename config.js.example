@@ -1,0 +1,15 @@
+//ProPresenter-vMix Configuration
+var config = {
+	//IP and Port for ProPresenter Network Connection
+	//Enable under ProPresenter Preferences -> Network tab
+	'propresenter_ip' : '192.168.1.4',
+	'propresenter_port' : 60157,
+	'propresenter_password' : 'av',
+	
+	//IP and Port for vMix API
+	'vmix_ip' : '127.0.0.1',
+	'vmix_port' : 8088,
+	
+	//vMix Input number to get ProPresenter text
+	'vmix_input' : 3
+};
