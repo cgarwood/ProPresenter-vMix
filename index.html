@@ -32,14 +32,15 @@
 		if (message['acn'] == "fv") {
 			if (message['ary'][0]['txt'] != undefined) {
 				console.log(message['ary']);
-				//var lyric = message['ary'][0]['txt'].toUpperCase()
-				if (message['ary'][2]['txt'] != 'novmix') {
-					var lyric = message['ary'][0]['txt'];
-					$("#cs").html(lyric.replaceAll("\n","<br>").replaceAll("\r","<br>"));
-					var text = lyric.replaceAll("\n", "%0A").replaceAll("\r", "%0A");
-				} else {
-					var text = "";
+				var text = '';
+				var lyric = '';
+				if (typeof message['ary'][2] !== 'undefined' && message['ary'][2]['txt'] != 'novmix') {
+					lyric = message['ary'][0]['txt'];
+					text = lyric.replaceAll("\n", "%0A").replaceAll("\r", "%0A");
 				}
+				
+				$("#cs").html(lyric.replaceAll("\n","<br>").replaceAll("\r","<br>"));
+				
 				//Send slide data to vMix
 				$.get("http://"+config['vmix_ip']+":"+config['vmix_port']+"/api/?Function=SetText&SelectedIndex=0&Input="+config['vmix_input']+"&Value="+text);
 			}
