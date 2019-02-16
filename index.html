@@ -1,73 +1,189 @@
 <!doctype html>
 <html>
 <head>
+	<title>ProPresenter-vMix Bridge</title>
+	<style media="screen">
+		body {margin:10px auto;width:600px;background: black;color:ivory;border:1px solid ivory; border-radius: 10px;font-family:Muli,sans-serif;;padding:10px;box-sizing:border-box;}
+		clock{position:absolute;bottom:10px;right:10px;text-align:right;}
+		h1 {margin-top:0;}
+		li {margin-bottom:3px;list-style: none;}
+		label {width:250px;display:inline-block;}
+		input {display:inline-block;vertical-align:middle;border:1px solid #333;border-radius:2px;background:none;padding:6px;color:white;font-family:Muli;}
+		#cs {border:1px solid #eee;border-color:white;border-radius:3px;background:#222;padding:20px;font-size:1.2em;font-family:Muli;font-weight:600;}
+		.disconnected {border-color:red;}
+		.disconnected #cs {border-color:red;}
+		.connected #cs {border-color:green;}
+		status {position:absolute;bottom:10px;left:10px;color:white;}
+		.connected status {color:green;}
+		.disconnected status {color:red;}
+		.vmix.sending {color:blue;}
+		.vmix.failed {color:red;}
+	</style>
 <meta charset="UTF-8">
 <script type="text/javascript" src="lib/jquery-1.12.0.min.js"></script>
 <script type="text/javascript" src="lib/jquery.json.min.js"></script>
 <script type="text/javascript" src="lib/jquery.simple.websocket.js"></script>
 <script type="text/javascript" src="config.js"></script>
 <script type="text/javascript">
-	$(document).ready(function() {
-		$('#propresenter_ip').text("ProPresenter at "+ config['propresenter_ip'] +':'+config['propresenter_port']);
-		$('#vmix_ip').text("vMix at "+ config['vmix_ip'] +":"+ config['vmix_port']);
-		$('#vmix_input').text("Controlling vMix Input #"+ config['vmix_input']);
-	});
-	
-	//Connect to ProPresenter Remote Stage Display
-    var webSocket = $.simpleWebSocket({ url: 'ws://'+config['propresenter_ip']+':'+config['propresenter_port']+'/stagedisplay' });
-	
-	//Connect and send the password
-    webSocket.send({"pwd":config['propresenter_password'],"ptl":610,"acn":"ath"}).done(function() {
-        // message send
-		console.log("SENT AUTH");
-    }).fail(function(e) {
-        // error sending
-    });
+	var webSocket;
+	var slideText = '';
+	var lastMessageTime;
+	var reconnectTime = 20000;
+	var reconnectTimer = 0;
+	var vMixResendTimer = 0;
 
-    // reconnected listening
-    webSocket.listen(function(message) {
-		if (message['acn'] != "vid") {
-			console.log(message);
+	String.prototype.replaceAll = function(search, replacement) {
+	    var target = this;
+	    return target.split(search).join(replacement);
+	};
+
+	function check_propresenter() {
+		setTimeout(check_propresenter, 2000)
+		if (!webSocket) return connect_propresenter();
+		if (! webSocket.isConnected() ) {
+			// if (reconnectTimer != 0) clearTimeout(reconnectTimer);
+			// reconnectTimer = setTimeout(reconnect_propresenter, reconnectTime);
+			reconnect_propresenter();
+			$('body').addClass('disconnected');
+			$('body').removeClass('connected');
+			$('status .pp').html('DISCONNECTED')
+			return;
 		}
-		if (message['acn'] == "fv") {
-			if (message['ary'][0]['txt'] != undefined && message['ary'][0]['acn'] == 'cs') {
-				console.log(message['ary']);
-				var text = '';
-				var lyric = '';
-				if (typeof message['ary'][2] !== 'undefined' && message['ary'][2]['txt'] != 'novmix') {
-					lyric = message['ary'][0]['txt'];
-					text = lyric.replaceAll("\r\n", "%0A").replaceAll("\n", "%0A").replaceAll("\r", "%0A");
+		else if (Date.now() - lastMessageTime > 60000) {
+			auth_propresenter();
+		}
+	}
+
+	function set_slide(lyric) {
+		$("#cs").html(lyric.replaceAll("\r\n", "%0A").replaceAll("\n","<br>").replaceAll("\r","<br>"));
+		send_vmix(lyric.replaceAll("\r\n", "%0A").replaceAll("\n", "%0A").replaceAll("\r", "%0A"));
+	}
+
+	function resend_vmix() {
+		send_vmix(lastVmixMessage);
+	}
+
+	function send_vmix(text) {
+		$('status .vmix').addClass('sending')
+		$('status .vmix').html('SENDING...')
+		console.log('Sending to vmix:\n' + text)
+		lastVmixMessage = text;
+		$.ajax(
+			"http://"+config.vmix_ip+":"+config.vmix_port+"/api/?Function=SetText&SelectedIndex=0&Input="+config.vmix_input+"&Value="+text,
+			{
+				timeout: 500,
+				success: function() {
+					$('status .vmix').removeClass('failed')
+					$('status .vmix').html('SENT')
+				},
+				error: function(xhr, status, error){
+					$('status .vmix').addClass('failed')
+					$('status .vmix').html('FAILED')
+					console.log('vmix connection error, is it running?');
+					if (vMixResendTimer!=0) clearTimeout(vMixResendTimer);
+					vMixResendTimer = setTimeout(resend_vmix, 3000)
+				},
+				complete: function() {
+					$('status .vmix').removeClass('sending');
 				}
-				
-				$("#cs").html(lyric.replaceAll("\r\n", "%0A").replaceAll("\n","<br>").replaceAll("\r","<br>"));
-				
-				//Send slide data to vMix
-				$.get("http://"+config['vmix_ip']+":"+config['vmix_port']+"/api/?Function=SetText&SelectedIndex=0&Input="+config['vmix_input']+"&Value="+text);
 			}
-		}
-		
-		
-    });
-	
-	//Replace 127.0.0.1:8088 with the IP and Port of your vMix system
-	$.get("http://127.0.0.1:8088/api", function(d) {
-		console.log(d);
+		);
+	}
+
+	function reconnect_propresenter() {
+		webSocket.removeAll();
+		webSocket.close();
+		connect_propresenter();
+	}
+
+	function connect_propresenter() {
+		//Connect to ProPresenter Remote Stage Display
+		webSocket = $.simpleWebSocket({ attempts:1, url: 'ws://'+config.propresenter_ip+':'+config.propresenter_port+'/stagedisplay' });
+
+		webSocket.isConnected(auth_propresenter)
+
+		// reconnected listening
+		webSocket.listen(function(message) {
+			console.log(message);
+			lastMessageTime = Date.now()
+			$('body').removeClass('disconnected')
+			$('body').addClass('connected');
+			$('status .pp').html('CONNECTED')
+			if (message['acn'] != "vid") {
+				// console.log(message);
+			}
+			if (message['acn'] == 'sys') {
+				$('clock').html(message['txt'])
+			}
+			if (message['acn'] == "fv") {
+				if (message['ary'][0]['txt'] != undefined && message['ary'][0]['acn'] == 'cs') {
+					// console.log(message['ary']);
+					//set_slide(message['ary'][0]['txt']);
+					if (typeof message['ary'][2] == 'undefined' || (typeof message['ary'][2] !== 'undefined' && message['ary'][2]['txt'] != 'novmix')) {
+						set_slide(message['ary'][0]['txt']);
+					}
+					if (typeof message['ary'][2] !== 'undefined' && message['ary'][2]['txt'] == 'novmix') {
+						set_slide('');
+					}
+				}
+			}
+		});
+	}
+
+	function auth_propresenter() {
+		//Connect and send the password
+		webSocket.send({"pwd":config.propresenter_password,"ptl":610,"acn":"ath"}).done(function() {
+			// message send
+			console.log("SENT AUTH");
+		}).fail(function(e) {
+			// error sending
+		});
+	}
+
+	function check_vmix() {
+		//Replace 127.0.0.1:8088 with the IP and Port of your vMix system
+		$.get("http://127.0.0.1:8088/api", function(d) {
+			console.log(d);
+		});
+	}
+
+	function update_prop_address(address) {
+		data = address.split(':');
+		config.propresenter_ip = data[0];
+		config.propresenter_port = data[1];
+		webSocket.close();
+		connect_propresenter();
+	}
+
+	function update_vmix_address(address) {
+		data = address.split(':');
+		config.vmix_ip = data[0];
+		config.vmix_port = data[1];
+	}
+
+	$(document).ready(function() {
+		// $('#propresenter_ip').text("ProPresenter at "+ config['propresenter_ip'] +':'+config['propresenter_port']);
+		// $('#vmix_ip').text("vMix at "+ config['vmix_ip'] +":"+ config['vmix_port']);
+		// $('#vmix_input').text("Controlling vMix Input #"+ config['vmix_input']);
+		$('#prop_ip_input').val(config.propresenter_ip +':'+config.propresenter_port);
+		$('#vmix_ip_input').val(config.vmix_ip +":"+ config.vmix_port);
+		$('#vmix_input_input').val(config.vmix_input);
+
+		check_propresenter();
+		// check_vmix();
 	});
-	
-	
-String.prototype.replaceAll = function(search, replacement) {
-    var target = this;
-    return target.split(search).join(replacement);
-};
+
 </script>
 </head>
 <body>
+	<clock></clock>
+	<status>PP: <span class='pp'>CONNECTING...</span> | VMIX: <span class='vmix'>WAITING</span></status>
 	<h1>ProPresenter vMix Bridge</h1>
 	<h3>Configuration</h3>
 	<ul>
-		<li id="propresenter_ip"></li>
-		<li id="vmix_ip"></li>
-		<li id="vmix_input"></li>
+		<li id="propresenter_ip"><label>ProPresenter Address (IP:Port): </label><input id="prop_ip_input" onchange="update_prop_address(this.value);"/></li>
+		<li id="vmix_ip"><label>vMix Address (IP:Port): </label><input id="vmix_ip_input" onchange="update_vmix_address(this.value)"/></li>
+		<li id="vmix_input"><label>vMix Input: </label><input id="vmix_input_input" onchange="config.vmix_input = this.value;"/></li>
 	</ul>
 	<h3>Current Slide</h3>
 	<div id="cs"></div>
